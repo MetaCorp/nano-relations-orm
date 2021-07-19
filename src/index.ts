@@ -114,12 +114,12 @@ const populateElement = async <T>(entityName: string, childKey: string, element:
   return element
 }
 
-export const find = async <T>(entityName: string, where: any, options?: any | string[], orderBy?: any, limit?: number, offset?: number): Promise<T[]> => {
+export const find = async <T>(entityName: string, where: any, options?: any | string[], orderBy?: any, limit?: number, offset?: number): Promise<T[] | null> => {
   // console.log('NotionDB find', { entityName, where, options, orderBy, limit, offset })
 
   let elements = await adapter.find(entityName, where, orderBy, limit, offset)
 
-  if (elements === undefined) return
+  if (elements === undefined) return null
 
   if (options?.populate !== undefined) {
 
@@ -143,9 +143,9 @@ export const findOne = async <T>(entityName: string, where: any, options?: any |
   
   // TODO : handle error in object structure
   
-  let element: T = await adapter.findOne(entityName, where)
+  let element: T | null = await adapter.findOne(entityName, where)
 
-  if (element === undefined) return
+  if (element === undefined) return null
   
   if (options?.populate !== undefined) {
 
