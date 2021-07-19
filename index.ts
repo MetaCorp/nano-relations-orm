@@ -126,10 +126,12 @@ export const find = async <T>(entityName: string, where: any, options?: any | st
     const populate = options.populate.filter((childKey: string) => childKey.split('.').length === 1)
 
     for (const childKey of populate as string[]) {
+      // @ts-ignore
       elements = await Promise.all(elements.map(async (element: T) => await populateElement(entityName, childKey, element, options.populate)))
     }
   }
 
+  // @ts-ignore
   return elements
 }
 
