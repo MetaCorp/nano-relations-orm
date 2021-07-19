@@ -1,0 +1,8 @@
+{
+  "name": "nano-relations-orm",
+  "version": "0.0.1",
+  "main": "index.ts",
+  "repository": "https://github.com/MetaCorp/nano-relations-orm.git",
+  "author": "Léopold Szabatura <l.szabatura@gmail.com>",
+  "license": "MIT"
+}
