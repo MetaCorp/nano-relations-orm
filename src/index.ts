@@ -85,10 +85,13 @@ export const init = (options: { adapter?: any, entities: any }) => {
 
 // TODO : on exit cb
 
-const populateElement = async <T>(entityName: string, childKey: string, element: T, populate: string[]): Promise<T | null> => {
+const populateElement = async <T>(entityName: string, childKey: string, element: T, options: any): Promise<T | null> => {
+
+  const populate = options ? options.autoPopulate ? Object.keys(entities[entityName].relations) : options.populate : undefined
+  
   const childRelation = entities[entityName].relations[childKey]
 
-  const childPopulate = populate.filter((childKey2: string) => childKey2.split('.').length > 1 && childKey2.split('.')[0] === childKey)
+  const childPopulate = populate?.filter((childKey2: string) => childKey2.split('.').length > 1 && childKey2.split('.')[0] === childKey)
     .map((childKey2: string) => childKey2.split('.').slice(1).join('.'))
   
   // console.log({ entityName, childKey, childRelation, childPopulate })
@@ -97,42 +100,54 @@ const populateElement = async <T>(entityName: string, childKey: string, element:
     // @ts-ignore
     element[childKey] = await find(childRelation.entity, {
       [childRelation.to]: element[entities[entityName].primaryKey]
-    }, { populate: childPopulate })
+    }, {
+      ...options,
+      populate: childPopulate
+    })
   }
   else if (childRelation.type === 'M:1') {
 
     const childElement = await findOne(childRelation.entity, {
       [entities[childRelation.entity].primaryKey]: element[childKey]
-    }, { populate: childPopulate })
+    }, {
+      ...options,
+      populate: childPopulate
+    })
 
     if (childElement !== undefined) {
       // @ts-ignore
       element[childKey] = childElement
     }
   }
-  else if (childRelation.type === '1:M*') {
-    element[childKey] = await Promise.all(element[childKey].map(async (id: string) => await findOne(childRelation.entity, {
+  else if (childRelation.type === 'M:1*') {
+    element[childKey] = await Promise.all(element[childKey].map((id: string) => findOne(childRelation.entity, {
       [entities[childRelation.entity].primaryKey]: id
-    }, { populate: childPopulate })))
+    }, {
+      ...options,
+      populate: childPopulate
+    })))
   }
 
   return element
 }
 
+
 export const find = async <T>(entityName: string, where: any, options?: any | string[], orderBy?: any, limit?: number, offset?: number): Promise<T[] | null> => {
   // console.log('NotionDB find', { entityName, where, options, orderBy, limit, offset })
+
+  const populate = options ? options.autoPopulate ? Object.keys(entities[entityName].relations) : options.populate : undefined
 
   let elements = await adapter.find(entityName, where, orderBy, limit, offset)
 
   if (elements === undefined) return null
 
-  if (options?.populate !== undefined) {
+  if (populate !== undefined) {
 
-    const populate = options.populate.filter((childKey: string) => childKey.split('.').length === 1)
+    const filteredPopulate = populate.filter((childKey: string) => childKey.split('.').length === 1)
 
-    for (const childKey of populate as string[]) {
+    for (const childKey of filteredPopulate as string[]) {
       // @ts-ignore
-      elements = await Promise.all(elements.map(async (element: T) => await populateElement(entityName, childKey, element, options.populate)))
+      elements = await Promise.all(elements.map(async (element: T) => await populateElement(entityName, childKey, element, options)))
     }
   }
 
