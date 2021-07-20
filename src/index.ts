@@ -165,7 +165,8 @@ export const findOne = async <T>(entityName: string, where: any, options?: any |
 // TODO : PrimaryKey needs to be set before insert
 // INFO : can't handle array of array in relations
 // TODO : might ! does not await nested entity upload since id is set before
-export const nativeInsert = async (entityName: string, data: any): Promise<any> => {
+// INFO : fromPopulate needed to stop circular propagation
+export const nativeInsert = async (entityName: string, data: any, fromPopulate?: string): Promise<any> => {
   // console.log('NotionDB nativeInsert', { entityName, data: inspect(data) })
   
   let data2 = data
@@ -173,40 +174,66 @@ export const nativeInsert = async (entityName: string, data: any): Promise<any> 
   // insert nested entities, get their id, update data2, insert data2
 
   for (const [key, value] of Object.entries(data2)) {
-    if (Object.keys(entities[entityName].relations).includes(key) &&
-      ((entities[entityName].relations[key].type === 'M:1' && typeof value === 'object') ||
-      // @ts-ignore
-      (entities[entityName].relations[key].type === '1:M' && !value.some((element: any) => typeof element !== 'object')))) {
+    if (key !== fromPopulate && Object.keys(entities[entityName].relations).includes(key)) {
       
       const relation = entities[entityName].relations[key]
 
-      // console.log({ key, value, relation })
+      // This typechecking is to handle circular nested entities
+      if ((relation.type === 'M:1' && typeof value === 'object') ||
+      // @ts-ignore
+      (relation.type === '1:M' && !value.some((element: any) => typeof element !== 'object'))) {
+      
 
-      if (relation.type === '1:M') {
-        // @ts-ignore
-        for (const element of value) {
-          const response = await nativeInsert(relation.entity, {
-            ...element,
-            [relation.to]: data[entities[entityName].primaryKey],
-          })
-          // TODO : might need response.id if no primaryKey is set
-        }
-        // @ts-ignore
-        data2[key] = value.map((element: any) => element[entities[relation.entity].primaryKey])
-      }
-      else if (relation.type === 'M:1') {
-        const response = await nativeInsert(relation.entity, {
+        // console.log({ key, value, relation })
+
+        if (relation.type === '1:M') {
           // @ts-ignore
-          ...value,
-          [relation.to]: data[entities[entityName].primaryKey],
-        })
-        // TODO : might be response.id
-        // @ts-ignore
-        data2[key] = element[entities[relation.entity].primaryKey]
+          for (const element of value) {
+            const response = await nativeInsert(relation.entity, {
+              ...element,
+              [relation.to]: data[entities[entityName].primaryKey],
+            }, relation.to)
+            // TODO : might need response.id if no primaryKey is set
+          }
+          // @ts-ignore
+
+          // TOTEST : we do not need backtracking array anymore, maybe needed in the future
+          // data2[key] = value.map((element: any) => element[entities[relation.entity].primaryKey])
+          delete data2[key]
+        }
+        else if (relation.type === 'M:1') {// Will rarely have to do this since child.parent... will rarely be inserted this way
+          const response = await nativeInsert(relation.entity, {
+            // @ts-ignore
+            ...value,
+            // TOTEST : we do not need backtracking array anymore, maybe needed in the future (this line should return an array of id anyway)
+            // [relation.to]: data[entities[entityName].primaryKey],
+          }, relation.to)
+
+          data2[key] = data[entities[relation.entity].primaryKey]// TOTEST : not sure about data[]
+        }
+        else {
+          console.log('Error : Unrecognize relation type :', { entityName, key, relation: relation, data })
+        }
+        
       }
       else {
-        console.log('Error : Unrecognize relation type :', { entityName, key, relation: entities[entityName].relations[key], data })
+        continue
+        // Here is to add id when insert nested entities
+
+        // When inserting an nested Entities, update the parent ids array
+        if (relation.type === '1:M') {
+          const response = await nativeUpdate(relation.entity, {
+            [entities[relation.entity].primaryKey]: data[key]
+          }, {
+            
+          })
+        }
+        else {
+          console.log('Error : Impossible insert type :', { entityName, key, relation: relation, data })
+        }
+
       }
+
     }
   }
 
@@ -222,4 +249,11 @@ export const nativeInsert = async (entityName: string, data: any): Promise<any> 
   //   affectedRows: 1,
   //   insertId: entityName === 'Deck' ? data.blockId : data.id
   // }))
+}
+
+// TODO : update with nested entities
+export const nativeUpdate = async (entityName: string, where: any, data: any): Promise<any> => {
+  const response = await adapter.nativeUpdate(entityName, where, data)
+
+  return response
 }

@@ -11,8 +11,13 @@ const nativeInsert = async (entityName: string, data: any): Promise<any> => {
   return null
 }
 
+const nativeUpdate = async (entityName: string, where: any, data: any): Promise<any> => {
+  return null
+}
+
 export default {
   find,
   findOne,
-  nativeInsert
+  nativeInsert,
+  nativeUpdate
 }
