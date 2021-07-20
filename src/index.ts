@@ -110,6 +110,11 @@ const populateElement = async <T>(entityName: string, childKey: string, element:
       element[childKey] = childElement
     }
   }
+  else if (childRelation.type === '1:M*') {
+    element[childKey] = await Promise.all(element[childKey].map(async (id: string) => await findOne(childRelation.entity, {
+      [entities[childRelation.entity].primaryKey]: id
+    }, { populate: childPopulate })))
+  }
 
   return element
 }
